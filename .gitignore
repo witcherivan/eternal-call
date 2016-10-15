@@ -1,0 +1,454 @@
+/*
+ * To change this license header, choose License Headers in Project Properties.
+ * To change this template file, choose Tools | Templates
+ * and open the template in the editor.
+ */
+package gameMechanics.world;
+import asserts.Verify;
+import dataSets.ItemSlotType;
+import gameMechanics.constructor.schemes.item.Bag;
+import gameMechanics.constructor.schemes.item.ContainerSize;
+import gameMechanics.constructor.schemes.item.DressSlotStats;
+import gameMechanics.constructor.schemes.item.ItemBagReplica;
+import gameMechanics.constructor.schemes.item.ItemInstance;
+import gameMechanics.constructor.schemes.item.ItemQuality;
+import gameMechanics.constructor.schemes.item.ItemResource;
+import gameMechanics.constructor.schemes.item.ItemState;
+import gameMechanics.constructor.schemes.item.ItemSubstance;
+import gameMechanics.constructor.schemes.item.MsgEquipFailed;
+import gameMechanics.constructor.schemes.item.MsgUnequipFailed;
+import gameMechanics.constructor.schemes.item.dc;
+import gameMechanics.constructor.schemes.item.tb;
+import gameMechanics.constructor.schemes.item.tb.b_;
+import gameMechanics.constructor.schemes.item.vb;
+import gameMechanics.itemService.SlottedItemsContainerReplica;
+import gameMechanics.itemService.j;
+import gameMechanics.itemService.y;
+import gameMechanics.world.avatar.Avatar;
+import gameMechanics.world.avatar.AvatarMechanics;
+import gameMechanics.world.avatar.CharacterRaceClass;
+import gameMechanics.world.avatar.baggage.WardrobeReplica;
+import gameMechanics.world.creature.CombatState;
+import gameMechanics.world.stats.Stats;
+import java.util.Collection;
+import java.util.Set;
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
+import replication.lb;
+import replication.replicator.Replicated;
+import replicationAnnotations.ab;
+import replicationAnnotations.bb;
+import replicationAnnotations.cb;
+import replicationAnnotations.hb;
+import system.a;
+import org.apache.log4j.Logger;
+/**
+ *
+ * @author acteros
+ */
+
+@replicationAnnotations.ib("45525739")
+@replicationAnnotations.n("1989194027")
+@ab
+@bb
+@a
+public final class DressReplica
+  implements DressReplicaClientReplica, Replicated, SlottedItemsContainerReplica, DressReplicaReplica
+{
+  @Nullable
+  public ItemSlot checkCanMoveTo(@NotNull ItemSlot paramItemSlot, int paramInt, @Nullable ItemInstance paramItemInstance)
+  {
+    if (paramItemInstance == null) {
+      return null;
+    }
+    DressSlot localDressSlot = calcActualSlotTo(paramInt, paramItemInstance);
+    if (localDressSlot == null)
+    {
+      MsgEquipFailed.a(this.owner, paramItemInstance.getResource(), paramItemSlot, gameMechanics.itemService.c.Undressable);return null;
+    }
+    if (CombatState.isInCombat(this.owner))
+    {
+      MsgEquipFailed.a(this.owner, paramItemInstance.getResource(), paramItemSlot, gameMechanics.itemService.c.InCombat);return null;
+    }
+    gameMechanics.itemService.c localc = canPutOn(localDressSlot, paramItemInstance);
+    if (!localc.isSuccessful())
+    {
+      MsgEquipFailed.a(this.owner, paramItemInstance.getResource(), paramItemSlot, localc);return null;
+    }
+    return ItemSlot.dressSlot(localDressSlot, this.secondary);
+  }
+ 
+  public boolean hasItem(@NotNull ItemResource paramItemResource)
+  {
+    return this.countCache.b(paramItemResource);
+  }
+ 
+  @Nullable
+  public ItemInstance getItem(@NotNull DressSlot paramDressSlot)
+  {
+    if (!paramDressSlot.isSlot()) {
+      return null;
+    }
+    return (ItemInstance)this.items.a(paramDressSlot.ordinal());
+  }
+ 
+  @NotNull
+  private gameMechanics.itemService.c checkContainerSize(@NotNull DressSlot paramDressSlot, @NotNull ContainerSize paramContainerSize)
+  {
+    ItemInstance localItemInstance = getItem(paramDressSlot);
+    if (localItemInstance == null) {
+      return gameMechanics.itemService.c.Success;
+    }
+    ContainerSize localContainerSize = (ContainerSize)localItemInstance.getResource().getFunctionalPart(paramContainerSize.getClass());
+    if (localContainerSize == null)
+    {
+      Verify.fail(String.format("%s in slot %s of avatar %s doesn't have expected functional part %s", new Object[] { localItemInstance, paramDressSlot, this.owner, paramContainerSize.getClass() }));return gameMechanics.itemService.c.FailureVoid;
+    }
+    if ((!constructor.c.a(this.owner)) && (paramContainerSize.getTotalSize() < localContainerSize.getTotalSize())) {
+      return paramDressSlot == DressSlot.DEPOSITBOX ? gameMechanics.itemService.c.SmallerDepositBox : gameMechanics.itemService.c.SmallerBag;
+    }
+    return gameMechanics.itemService.c.Success;
+  }
+ 
+  @Nullable
+  private DressSlot calcActualSlotTo(int paramInt, @NotNull ItemInstance paramItemInstance)
+  {
+         // Logger.getLogger(DressReplica.class).info("##### calcActualSlotTo ######ResId" + paramItemInstance.getResource().a().a());
+      
+    DressSlot localDressSlot1 = paramItemInstance.getResource().getSlot();Set localSet = localDressSlot1.getCompatibleSlots();
+    if ((!paramItemInstance.getState().a(localDressSlot1)) || (localSet.isEmpty())) {
+      return null;
+    }
+    DressSlot localDressSlot2 = DressSlot.valueOf(paramInt);
+    if ((localDressSlot2 == null) || (!paramItemInstance.getState().a(localDressSlot2))) {
+      localDressSlot2 = localDressSlot1;
+    }
+    ItemQuality localItemQuality = vb.c(paramItemInstance);
+    
+    Object localObject = null;
+    for (DressSlot localDressSlot3 : localDressSlot2.getCompatibleSlots()) {
+      if (DressSlotStats.get().isUnlocked(this.owner.getMechanics().getUnlocks(), localDressSlot3, localItemQuality)) {
+        if (localSet.contains(localDressSlot3))
+        {
+          if (getItem(localDressSlot3) == null)
+          {
+            localObject = localDressSlot3;
+            
+            break;
+          }
+          if (localObject == null) {
+            localObject = localDressSlot3;
+          }
+        }
+      }
+    }
+    return (DressSlot)localObject;
+  }
+ 
+  public void setEnabled(boolean paramBoolean)
+  {
+    this.enabled = paramBoolean;getReplicatorsContainer().e();
+  }
+ 
+  public void onEmpty()
+  {
+    for (int i = 0; i < this.items.size();)
+    {
+      ItemInstance localItemInstance = (ItemInstance)this.items.a(i);
+      if (localItemInstance != null)
+      {
+        WardrobeReplica.get(this.owner).onTakeOff(DressSlot.values()[i], localItemInstance, this.secondary);this.items.a(i, null);this.countCache.b().b(localItemInstance.getResource());
+      }
+      i++;
+    }
+    this.countCache.a();
+  }
+ 
+  public int count(@NotNull ItemResource... paramVarArgs)
+  {
+    int i = 0;
+    
+    ItemResource[] arrayOfItemResource = paramVarArgs;int j = arrayOfItemResource.length;
+    for (int k = 0; k < j;)
+    {
+      ItemResource localItemResource = arrayOfItemResource[k];i += this.countCache.a(localItemResource);k++;
+    }
+        //Logger.getLogger(DressReplica.class).info("###########Test count: " + i);
+
+    return i;
+  }
+ 
+  private void freeSlot(@NotNull DressSlot paramDressSlot)
+  {
+    ItemInstance localItemInstance = (ItemInstance)this.items.a(paramDressSlot.ordinal());
+    if (localItemInstance == null) {
+      return;
+    }
+    this.countCache.d(localItemInstance.getResource(), localItemInstance.getStackCount());
+    
+    WardrobeReplica.get(this.owner).onTakeOff(paramDressSlot, localItemInstance, this.secondary);this.items.a(paramDressSlot.ordinal(), null);
+    
+    this.countCache.b().b(localItemInstance.getResource());
+  }
+ 
+  public void putOnSlot(@NotNull DressSlot paramDressSlot, @NotNull ItemInstance paramItemInstance)
+  {
+    
+
+    boolean fake_item = false;   
+          dc locdc = (dc)paramItemInstance;
+          if(paramDressSlot != paramItemInstance.getResource().getSlot()){
+              fake_item = true;
+              
+              if(paramDressSlot.getGeneralizedSlot().name() == paramItemInstance.getResource().getSlot().name())
+                  fake_item = false;
+              
+              
+              
+              if(paramItemInstance.getResource().getSlot().isDoubleSlot() && paramDressSlot.name() == "MAINHAND"){
+                  Logger.getLogger(DressReplica.class).info("##### Avatar" + paramItemInstance.getResource().getSlot().name());
+                  Logger.getLogger(DressReplica.class).info("##### Avatar" + paramDressSlot.name());
+                  fake_item = false;
+              }
+             // if(fake_item == true){
+              //        Logger.getLogger(DressReplica.class).info("##### Avatar" + paramItemInstance.getResource().getSlot().name());
+                //      Logger.getLogger(DressReplica.class).info("##### Avatar" + paramDressSlot.name());
+              //}
+              
+              
+              //if(paramDressSlot.isDoubleSlot() == paramItemInstance.getResource().getSlot().isDoubleSlot())
+                //   fake_item = false;
+              
+            }
+    if(this.secondary != paramItemInstance.getResource().isRitual() ){
+
+        fake_item = true;
+    }
+    
+    gameMechanics.itemService.c localc = this.owner.getMechanics().getCharacterRaceClass().canUse(this.owner.getStats().getLevel(), paramItemInstance.getResource().getItemClass());
+    if (!localc.isSuccessful()) {
+
+       fake_item = true;
+    }
+    
+    //if(paramItemInstance.getResource().getLevel()> this.owner.getStats().getLevel())
+    if (this.owner.getStats().getLevel() < paramItemInstance.getState().a(paramItemInstance.getResource(), paramItemInstance.getQuality(), paramItemInstance.getLevel())) {
+      
+      fake_item = true;
+    }
+    
+    if(fake_item){
+        Logger.getLogger(DressReplica.class).info("##### Avatar" + this.owner.getName() + " DUPED ITEMDRES");
+      return;
+    }else{
+    
+    freeSlot(paramDressSlot);   
+    this.countCache.b(paramItemInstance.getResource(), paramItemInstance.getStackCount());
+    this.items.a(paramDressSlot.ordinal(), paramItemInstance);       
+    WardrobeReplica.get(this.owner).onPutOn(paramDressSlot, paramItemInstance, this.secondary);
+    
+    this.countCache.b().b(paramItemInstance.getResource());
+    
+    }
+  }
+ 
+  public void onItemUpdated(int paramInt, @NotNull ItemSubstance paramItemSubstance)
+  {
+    DressSlot localDressSlot = DressSlot.valueOf(paramInt);
+    if (localDressSlot == null)
+    {
+      Verify.fail(String.format("Invalid dress slot: %s", new Object[] { Integer.valueOf(paramInt) }));
+    }
+    else
+    {
+      ItemInstance localItemInstance = getItem(localDressSlot);
+      if (localItemInstance == null)
+      {
+        Verify.fail("No item to be updated in slot " + paramInt + " for incoming " + paramItemSubstance);
+        
+        return;
+      }
+      this.countCache.c(paramItemSubstance.getResource(), paramItemSubstance.getStackCount());
+      
+      localItemInstance.update(paramItemSubstance);
+    }
+        Logger.getLogger(DressReplica.class).info("##### onItemUpdated ######ResId" + paramItemSubstance.getResource().a().a());
+
+  }
+ 
+  public boolean checkCanMoveFrom(int paramInt)
+  {
+    DressSlot localDressSlot = DressSlot.valueOf(paramInt);
+    if ((localDressSlot == null) || (getItem(localDressSlot) == null)) {
+      return false;
+    }
+    if (CombatState.isInCombat(this.owner))
+    {
+      msgSystem.ib.a(this.owner, new MsgUnequipFailed(this.owner.getAddress(), this.owner.getLegatAddress(), localDressSlot, gameMechanics.itemService.c.InCombat));
+      
+      return false;
+    }
+    return localDressSlot.isUnequipable();
+  }
+ 
+  @NotNull
+  public lb<ItemInstance> getItems()
+  {
+    return this.items;
+  }
+ 
+  public void onItemCreated(int paramInt, @NotNull ItemSubstance paramItemSubstance)
+  {
+    DressSlot localDressSlot = DressSlot.valueOf(paramInt);
+    if (localDressSlot == null) {
+      Verify.fail(String.format("Invalid dress slot: %s", new Object[] { Integer.valueOf(paramInt) }));
+    } else {
+      putOnSlot(localDressSlot, paramItemSubstance.a(this.owner));
+    }
+  }
+ 
+  @NotNull
+  public gameMechanics.world.replicators.n getReplicatorsContainer()
+  {
+    return this.replicatorsContaner;
+  }
+ 
+  public boolean isSecondary()
+  {
+    return this.secondary;
+  }
+ 
+  public void performExchange(int paramInt, @Nullable ItemInstance paramItemInstance)
+  {
+    DressSlot localDressSlot = DressSlot.valueOf(paramInt);
+    if (localDressSlot == null)
+    {
+      Verify.fail(String.format("Invalid dress slot: %s", new Object[] { Integer.valueOf(paramInt) }));
+      
+      return;
+    }
+    if (paramItemInstance == null) {
+      onFreeSlot(paramInt);
+    } else {
+      putOnSlot(localDressSlot, paramItemInstance);
+    }
+  }
+ 
+  public void onFreeSlot(int paramInt)
+  {
+    DressSlot localDressSlot = DressSlot.valueOf(paramInt);
+    if (localDressSlot == null) {
+      Verify.fail(String.format("Invalid dress slot: %s", new Object[] { Integer.valueOf(paramInt) }));
+    } else {
+      freeSlot(localDressSlot);
+    }
+  }
+ 
+  @Nullable
+  public ItemInstance prepareExchange(int paramInt)
+  {
+    DressSlot localDressSlot = DressSlot.valueOf(paramInt);
+    if (localDressSlot == null)
+    {
+      Verify.fail(String.format("Invalid dress slot: %s", new Object[] { Integer.valueOf(paramInt) }));return null;
+    }
+    return getItem(localDressSlot);
+  }
+ 
+  @Nullable
+  public ItemInstance getItem(int paramInt)
+  {
+    DressSlot localDressSlot = DressSlot.valueOf(paramInt);return localDressSlot == null ? null : getItem(localDressSlot);
+  }
+ 
+  public boolean isEnabled()
+  {
+    return this.enabled;
+  }
+ 
+  @hb
+  @cb
+  @NotNull
+  private final lb<ItemInstance> items = new lb(35);
+  @NotNull
+  private final Avatar owner;
+  @NotNull
+  private final tb subscriber;
+  @NotNull
+  private final tb.b_ countCache;
+  @hb
+  @cb
+  private final boolean secondary;
+  @hb
+  @cb
+  private boolean enabled;
+  @NotNull
+  private final gameMechanics.world.replicators.n replicatorsContaner;
+ 
+  public DressReplica(@NotNull Avatar paramAvatar, @NotNull tb paramtb, boolean paramBoolean1, boolean paramBoolean2)
+  {
+    this.owner = paramAvatar;
+    
+    this.enabled = paramBoolean2;
+    this.countCache = paramtb.a(paramBoolean1 ? ItemSlotType.SecondaryDress : ItemSlotType.PrimaryDress);
+    
+    this.secondary = paramBoolean1;this.subscriber = paramtb;
+    
+    this.replicatorsContaner = new gameMechanics.world.replicators.n(this);
+  }
+ 
+  @NotNull
+  public gameMechanics.itemService.c canPutOn(@NotNull DressSlot paramDressSlot, @NotNull dc paramdc)
+  {
+    
+  
+    if (!paramdc.getState().a(paramDressSlot)) {
+      return gameMechanics.itemService.c.WrongSlot;
+    }
+    
+    if (this.secondary != paramdc.getResource().isRitual()) {
+      return gameMechanics.itemService.c.WrongDress;
+    }
+    
+    if ((this.secondary) && (!this.enabled)) {
+      return gameMechanics.itemService.c.SecondaryDressLocked;
+    }
+    
+    gameMechanics.itemService.c localc = this.owner.getMechanics().getCharacterRaceClass().canUse(this.owner.getStats().getLevel(), paramdc.getResource().getItemClass());
+    if (!localc.isSuccessful()) {
+      return localc;
+    }
+    
+    if (this.owner.getStats().getLevel() < paramdc.getState().a(paramdc.getResource(), paramdc.getQuality(), paramdc.getLevel())) {
+      return gameMechanics.itemService.c.WrongCreatureLevel;
+    }
+    
+    ItemQuality localItemQuality = vb.c(paramdc);
+    if (!DressSlotStats.get().isUnlocked(this.owner.getMechanics().getUnlocks(), paramDressSlot, localItemQuality)) {
+      return localItemQuality.equals(paramdc.getQuality()) ? gameMechanics.itemService.c.SlotLocked : gameMechanics.itemService.c.EnchantLocked;
+    }
+    
+    Bag localBag = (Bag)paramdc.getResource().getFunctionalPart(Bag.class);
+    if ((localBag != null) && (localBag.canAccomodate(ItemBagReplica.get(this.owner).getItems()) == null)) {
+      return gameMechanics.itemService.c.TooSmallBag;
+    }
+    
+    ContainerSize localContainerSize = (ContainerSize)paramdc.getResource().getFunctionalPart(ContainerSize.class);
+
+    if (localContainerSize != null) {
+      return checkContainerSize(paramDressSlot, localContainerSize);
+    }
+    
+    return gameMechanics.itemService.c.Success;
+  }
+ 
+  public void onStripResult(@NotNull y paramy)
+  {
+    j localj = paramy.b();ItemInstance localItemInstance = getItem(paramy.a());
+    if (localItemInstance == null) {
+      return;
+    }
+    this.subscriber.b();freeSlot(paramy.a());ItemBagReplica.get(this.owner).applyChange(localj);this.subscriber.c();this.subscriber.a(localItemInstance.getResource());
+  }
+}
+
